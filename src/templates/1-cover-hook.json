@@ -1,0 +1,77 @@
+{
+  "id": "cover-hook",
+  "name": "Обкладинка з хуком",
+  "format": "feed",
+  "padding": {
+    "x": 80,
+    "y": 90
+  },
+  "background": {
+    "kind": "gradient",
+    "from": "#6D9286",
+    "to": "#4D5270",
+    "angle": 160
+  },
+  "blocks": [
+    {
+      "id": "eyebrow",
+      "text": "психолог • стосунки • опора",
+      "x": 80,
+      "y": 90,
+      "width": 920,
+      "fontFamily": "Onest",
+      "fontSize": 30,
+      "fontWeight": 600,
+      "italic": false,
+      "lineHeight": 1.2,
+      "letterSpacing": 3,
+      "align": "left",
+      "color": "#FAF1F0"
+    },
+    {
+      "id": "hook",
+      "text": "Ти не можеш без партнера чи не підпускаєш його близько?",
+      "x": 80,
+      "y": 760,
+      "width": 920,
+      "fontFamily": "Onest",
+      "fontSize": 96,
+      "fontWeight": 800,
+      "italic": false,
+      "lineHeight": 1.05,
+      "letterSpacing": -1,
+      "align": "left",
+      "color": "#FAF1F0"
+    },
+    {
+      "id": "handle",
+      "text": "@iamsonia.psy",
+      "x": 80,
+      "y": 1214,
+      "width": 460,
+      "fontFamily": "Onest",
+      "fontSize": 30,
+      "fontWeight": 600,
+      "italic": false,
+      "lineHeight": 1.2,
+      "letterSpacing": 1,
+      "align": "left",
+      "color": "#FAF1F0"
+    },
+    {
+      "id": "swipe",
+      "text": "гортай →",
+      "x": 640,
+      "y": 1214,
+      "width": 360,
+      "fontFamily": "Onest",
+      "fontSize": 30,
+      "fontWeight": 600,
+      "italic": false,
+      "lineHeight": 1.2,
+      "letterSpacing": 1,
+      "align": "right",
+      "color": "#FAF1F0"
+    }
+  ]
+}

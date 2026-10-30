@@ -1,0 +1,32 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Кольори інтерфейсу. Кольори поста задає користувач у шаблоні, тема на них не впливає. */
+:root {
+  --app-bg: #F3F0EE; --app-panel: #FFFFFF; --app-soft: #F8F5F3; --app-ink: #2D3044; --app-muted: #6C6F82;
+  --app-line: #E4DDD9; --app-accent: #4F7569; --app-accent-ink: #FFFFFF; --app-accent-soft: #E1ECE7; --app-stage: #E7E2DF;
+  --app-danger: #A23B3B;
+  color-scheme: light;
+}
+.dark {
+  --app-bg: #1B1D29; --app-panel: #242736; --app-soft: #2B2E3F; --app-ink: #EFEAE8; --app-muted: #A3A6B8;
+  --app-line: #383B4F; --app-accent: #8DB5A7; --app-accent-ink: #15201C; --app-accent-soft: #2A3B36; --app-stage: #151722;
+  --app-danger: #EC9A9A;
+  color-scheme: dark;
+}
+@theme inline {
+  --color-bg: var(--app-bg); --color-panel: var(--app-panel); --color-soft: var(--app-soft);
+  --color-ink: var(--app-ink); --color-muted: var(--app-muted); --color-line: var(--app-line);
+  --color-accent: var(--app-accent); --color-accent-ink: var(--app-accent-ink); --color-accent-soft: var(--app-accent-soft);
+  --color-stage: var(--app-stage); --color-danger: var(--app-danger);
+  --font-sans: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html, body, #root { height: 100%; }
+body { background: var(--app-bg); color: var(--app-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+input[type="range"] { accent-color: var(--app-accent); }
+:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
+.checker {
+  background-color: var(--app-stage);
+  background-image: radial-gradient(color-mix(in srgb, var(--app-ink) 8%, transparent) 1px, transparent 1px);
+  background-size: 18px 18px;
+}

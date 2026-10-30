@@ -1,0 +1,6 @@
+node_modules
+dist
+.DS_Store
+# свої шрифти з невільною ліцензією лишаються лише на твоєму комп'ютері
+src/fonts/local/*
+!src/fonts/local/.gitkeep

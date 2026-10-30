@@ -1,0 +1,60 @@
+{
+  "id": "square-note",
+  "name": "Квадрат: думка",
+  "format": "square",
+  "padding": {
+    "x": 90,
+    "y": 90
+  },
+  "background": {
+    "kind": "solid",
+    "color": "#FAF1F0"
+  },
+  "blocks": [
+    {
+      "id": "heading",
+      "text": "А тепер чесно",
+      "x": 90,
+      "y": 150,
+      "width": 900,
+      "fontFamily": "Georgia",
+      "fontSize": 88,
+      "fontWeight": 400,
+      "italic": true,
+      "lineHeight": 1.1,
+      "letterSpacing": 0,
+      "align": "left",
+      "color": "#6D9286"
+    },
+    {
+      "id": "body",
+      "text": "Обидві стратегії колись рятували тебе. Сьогодні вони просто заважають бути поруч і залишатися собою.",
+      "x": 90,
+      "y": 300,
+      "width": 880,
+      "fontFamily": "Onest",
+      "fontSize": 50,
+      "fontWeight": 500,
+      "italic": false,
+      "lineHeight": 1.38,
+      "letterSpacing": 0,
+      "align": "left",
+      "color": "#4D5270"
+    },
+    {
+      "id": "handle",
+      "text": "@iamsonia.psy",
+      "x": 90,
+      "y": 950,
+      "width": 500,
+      "fontFamily": "Onest",
+      "fontSize": 28,
+      "fontWeight": 600,
+      "italic": false,
+      "lineHeight": 1.2,
+      "letterSpacing": 1,
+      "align": "left",
+      "color": "#4D5270"
+    }
+  ]
+}

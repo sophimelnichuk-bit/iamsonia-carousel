@@ -1,0 +1,75 @@
+{
+  "id": "story-cta",
+  "name": "Stories: запис на консультацію",
+  "format": "story",
+  "padding": {
+    "x": 90,
+    "y": 250
+  },
+  "background": {
+    "kind": "solid",
+    "color": "#CBE8FF"
+  },
+  "blocks": [
+    {
+      "id": "heading",
+      "text": "Впізнаєш\nсебе?",
+      "x": 90,
+      "y": 560,
+      "width": 900,
+      "fontFamily": "Onest",
+      "fontSize": 124,
+      "fontWeight": 800,
+      "italic": false,
+      "lineHeight": 1.02,
+      "letterSpacing": -2,
+      "align": "left",
+      "color": "#4D5270"
+    },
+    {
+      "id": "body",
+      "text": "Розберемо твій сценарій на онлайн-консультації, спокійно і без осуду.",
+      "x": 90,
+      "y": 860,
+      "width": 860,
+      "fontFamily": "Onest",
+      "fontSize": 54,
+      "fontWeight": 400,
+      "italic": false,
+      "lineHeight": 1.35,
+      "letterSpacing": 0,
+      "align": "left",
+      "color": "#4D5270"
+    },
+    {
+      "id": "cta",
+      "text": "Запис у Direct →",
+      "x": 90,
+      "y": 1180,
+      "width": 900,
+      "fontFamily": "Georgia",
+      "fontSize": 72,
+      "fontWeight": 400,
+      "italic": true,
+      "lineHeight": 1.2,
+      "letterSpacing": 0,
+      "align": "left",
+      "color": "#6D9286"
+    },
+    {
+      "id": "handle",
+      "text": "@iamsonia.psy",
+      "x": 90,
+      "y": 1620,
+      "width": 500,
+      "fontFamily": "Onest",
+      "fontSize": 34,
+      "fontWeight": 600,
+      "italic": false,
+      "lineHeight": 1.2,
+      "letterSpacing": 1,
+      "align": "left",
+      "color": "#4D5270"
+    }
+  ]
+}
