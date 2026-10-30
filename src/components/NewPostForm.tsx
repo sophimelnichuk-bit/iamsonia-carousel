@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { composePost, DEFAULT_CTA, splitSlides } from '../lib/compose';
+import { autoSplit, composePost, DEFAULT_CTA } from '../lib/compose';
 import { FORMATS, FORMAT_IDS } from '../lib/formats';
 import { addPhoto, deletePhotos, photoUrl } from '../lib/photos';
 import type { FormatId, PhotoInfo, Post } from '../lib/types';
 import { Button } from './ui';
 
-const SAMPLE = `Ти не можеш без партнера чи не підпускаєш його близько?
+const SAMPLE = `Ти не можеш без партнера чи навпаки не підпускаєш його близько? Обидва сценарії про одне й те саме.
 
-Залежність
-Чекаєш повідомлення і не можеш видихнути. Настрій залежить від **тону партнера**.
+Коли ти в залежності, ти чекаєш повідомлення і не можеш видихнути, поки воно не прийде. Настрій залежить від тону партнера, а страх втратити партнера керує майже кожним рішенням.
 
-Контрзалежність
-Близькість лякає більше, ніж самотність. Тримаєш дистанцію, щоб **не розчаруватись**.
+Контрзалежність виглядає протилежно. Близькість лякає більше, ніж самотність, тому ти тримаєш дистанцію і справляєшся без нікого, аби тільки не розчаруватись.
 
-А тепер чесно
-Обидві стратегії колись рятували тебе. Сьогодні вони просто заважають бути поруч і залишатися собою.`;
+Обидві стратегії колись рятували тебе. Сьогодні вони просто заважають бути поруч і залишатися собою. Цьому можна навчитися, крок за кроком.
+
+Якщо впізнаєш себе, запишись на онлайн-консультацію в Direct або за посиланням у шапці профілю.`;
 
 const field = 'w-full rounded-lg border border-line bg-soft px-3 py-2 text-[15px] text-ink';
 
@@ -50,13 +49,13 @@ export function NewPostForm({ onClose, onCreate }: { onClose: () => void; onCrea
   const moveP = (i: number, d: number) => setPhotos(p => { const n = [...p]; const j = i + d; if (j < 0 || j >= n.length) return p; [n[i], n[j]] = [n[j], n[i]]; return n; });
   const removeP = (id: string) => { setPhotos(p => p.filter(x => x.id !== id)); deletePhotos([id]); };
 
-  const chunks = splitSlides(text);
-  const middle = Math.max(0, chunks.length - 1);
+  const plan = autoSplit(text, format);
+  const middle = plan.slides.length;
   const withPhoto = Math.min(middle, Math.max(0, photos.length - 1));
   const total = 1 + middle + 1;
 
   const submit = async () => {
-    if (!text.trim()) { setErr('Встав текст поста: перший абзац стане обкладинкою.'); return; }
+    if (!text.trim()) { setErr('Встав текст поста, і редактор розкладе його на слайди.'); return; }
     setBusy(true);
     try {
       // шрифт має бути завантажений до верстки, інакше розміри тексту розрахуються неточно
@@ -81,8 +80,18 @@ export function NewPostForm({ onClose, onCreate }: { onClose: () => void; onCrea
               {!text && <button type="button" className="text-[13px] text-accent" onClick={() => setText(SAMPLE)}>Вставити приклад</button>}
             </div>
             <textarea id="np-text" rows={14} value={text} onChange={e => { setText(e.target.value); setErr(''); }} className={field}
-              placeholder={'Хук для обкладинки\n\nЗаголовок слайду 2\nТекст слайду 2\n\nЗаголовок слайду 3\nТекст, **жирні слова** так'} />
-            <p className="text-[13px] text-muted">Порожній рядок або <code className="rounded bg-soft px-1">---</code> починає новий слайд. Перший рядок слайду стає заголовком. <code className="rounded bg-soft px-1">**слово**</code> буде жирним.</p>
+              placeholder="Встав готовий текст поста як є. Редактор сам знайде хук, розкладе текст на слайди і підбере заголовки." />
+            <p className="text-[13px] text-muted">Хук стає обкладинкою, абзаци розходяться по слайдах, довгі діляться по реченнях. Останній абзац із записом на консультацію піде на слайд із закликом. Щоб примусово почати новий слайд, постав рядок <code className="rounded bg-soft px-1">---</code>, а <code className="rounded bg-soft px-1">**слово**</code> зробить слово жирним.</p>
+            {text.trim() && (
+              <ol className="mt-1 flex max-h-56 flex-col gap-1 overflow-y-auto rounded-xl border border-line p-2 text-[13px]" aria-label="Як текст розкладено на слайди">
+                <li className="flex gap-2"><span className="w-5 shrink-0 text-right text-muted tabular-nums">1</span><span className="min-w-0"><b>Хук:</b> {plan.hook.replace(/\*\*/g, '')}{plan.hookBody && <span className="text-muted"> {plan.hookBody}</span>}</span></li>
+                {plan.slides.map((c, i) => (
+                  <li key={i} className="flex gap-2"><span className="w-5 shrink-0 text-right text-muted tabular-nums">{i + 2}</span>
+                    <span className="min-w-0 truncate">{c.heading && <b>{c.heading.replace(/\*\*/g, '')}. </b>}<span className="text-muted">{c.body.replace(/\*\*/g, '')}</span></span></li>
+                ))}
+                <li className="flex gap-2"><span className="w-5 shrink-0 text-right text-muted tabular-nums">{plan.slides.length + 2}</span><span className="min-w-0 truncate"><b>Заклик:</b> <span className="text-muted">{plan.cta && cta.body === DEFAULT_CTA.body ? plan.cta : cta.body}</span></span></li>
+              </ol>
+            )}
           </div>
 
           <div className="flex min-w-0 flex-col gap-4">
