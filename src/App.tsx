@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Calendar } from './components/Calendar';
 import { Frame } from './components/Frame';
 import { NewPostForm } from './components/NewPostForm';
 import { SettingsPanel, type PostControls } from './components/SettingsPanel';
@@ -9,7 +10,7 @@ import { Button } from './components/ui';
 import { buildCover, buildCta, buildPhoto, buildText, DEFAULT_CTA, reformatPost, relayout } from './lib/compose';
 import { addFontFile, ensureFonts, fontLoaded, registerLocalFonts } from './lib/fonts';
 import { FORMATS } from './lib/formats';
-import { addPhoto, deletePhotos, loadAllPhotos } from './lib/photos';
+import { addPhoto, cleanupPhotos, loadAllPhotos } from './lib/photos';
 import { canvasToPng, drawFrame, loadImage, loadSlideImages, slideSrcs, type BlockLayout, type ImageMap } from './lib/render';
 import { BUILTIN, blankBlock, clampBlocks, clone, isTemplate, templateToJson, uid } from './lib/templates';
 import type { FormatId, ImageBlock, PhotoInfo, Post, SlideKind, Template, TextBlock } from './lib/types';
@@ -39,6 +40,7 @@ function download(blob: Blob, name: string) {
 const fileBase = (p: Post) => `iamsonia-${new Date(p.createdAt).toISOString().slice(0, 10)}`;
 
 type Current = { kind: 'post' | 'template'; id: string };
+type Snap = { posts: Record<string, Post>; drafts: Record<string, Template> };
 
 export default function App() {
   const [library, setLibrary] = useState<Template[]>(BUILTIN);
@@ -62,6 +64,50 @@ export default function App() {
   const [note, setNote] = useState('');
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const heights = useRef<Record<string, number>>({});
+  const [calendar, setCalendar] = useState(false);
+  const [newPostDate, setNewPostDate] = useState<string | undefined>();
+  const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
+
+  // Історія змін для кнопки «Відкотити». Серія швидких змін (рух повзунка, набір тексту) стає одним кроком.
+  const past = useRef<Snap[]>([]);
+  const future = useRef<Snap[]>([]);
+  const prevSnap = useRef<Snap>({ posts, drafts });
+  const lastChange = useRef(0);
+  const restoring = useRef(false);
+  const [, setHistTick] = useState(0);
+  useEffect(() => {
+    const cur = { posts, drafts };
+    if (restoring.current) { restoring.current = false; prevSnap.current = cur; return; }
+    if (cur.posts === prevSnap.current.posts && cur.drafts === prevSnap.current.drafts) return;
+    const now = Date.now();
+    if (now - lastChange.current > 700) {
+      past.current.push(prevSnap.current);
+      if (past.current.length > 100) past.current.shift();
+      future.current = [];
+      setHistTick(n => n + 1);
+    }
+    lastChange.current = now;
+    prevSnap.current = cur;
+  }, [posts, drafts]);
+  const travel = useCallback((from: React.MutableRefObject<Snap[]>, to: React.MutableRefObject<Snap[]>, msg: string) => {
+    const s = from.current.pop(); if (!s) return;
+    to.current.push(prevSnap.current);
+    restoring.current = true; lastChange.current = 0;
+    setPosts(s.posts); setDrafts(s.drafts); setHistTick(n => n + 1); setNote(msg);
+  }, []);
+  const undo = useCallback(() => travel(past, future, 'Останню зміну відкочено'), [travel]);
+  const redo = useCallback(() => travel(future, past, 'Зміну повернуто'), [travel]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+      const el = e.target as HTMLElement;
+      const typing = el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !['range', 'color', 'checkbox', 'radio'].includes((el as HTMLInputElement).type));
+      if (typing) return; // у полі тексту працює звичайне скасування набору
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    };
+    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo]);
 
   const post = current.kind === 'post' ? posts[current.id] ?? null : null;
   const idx = post ? Math.min(slideIdx, post.slides.length - 1) : 0;
@@ -86,6 +132,8 @@ export default function App() {
     document.fonts.addEventListener('loadingdone', bump);
     registerLocalFonts().then(list => { if (list.length) setFontsVersion(v => v + 1); bump(); }).catch(() => {});
     loadAllPhotos().then(() => setPhotosVersion(v => v + 1));
+    // фото видалених постів прибираємо лише при наступному відкритті, щоб видалення поста можна було відкотити
+    cleanupPhotos(new Set(Object.values(loadPosts()).flatMap(p => p.photos.map(ph => ph.id))));
     return () => document.fonts.removeEventListener('loadingdone', bump);
   }, []);
 
@@ -99,7 +147,11 @@ export default function App() {
   }, [t?.blocks, fontsVersion]);
 
   // зображення всіх слайдів поста (для кадру і мініатюр)
-  const srcKey = useMemo(() => [...new Set((post ? post.slides : t ? [t] : []).flatMap(slideSrcs))].join('|'), [post, t]);
+  const srcKey = useMemo(() => {
+    const slides = post ? post.slides : t ? [t] : [];
+    const covers = calendar ? postList.map(p => p.slides[0]).filter(Boolean) : [];
+    return [...new Set([...slides, ...covers].flatMap(slideSrcs))].join('|');
+  }, [post, t, calendar, postList]);
   useEffect(() => {
     let live = true;
     const srcs = srcKey ? srcKey.split('|') : [];
@@ -261,12 +313,10 @@ export default function App() {
       }));
     },
     onDeletePost: async () => {
-      const used = post.photos.map(p => p.id);
       setPosts(ps => { const n = { ...ps }; delete n[post.id]; return n; });
-      await deletePhotos(used);
       const next = postList.find(p => p.id !== post.id);
       if (next) openPost(next.id); else openTemplate(library[0]?.id ?? '');
-      setNote('Пост видалено');
+      setNote('Пост видалено. Його можна повернути кнопкою «Відкотити».');
     },
   } : null;
 
@@ -290,6 +340,11 @@ export default function App() {
           <h1 className="text-lg font-bold tracking-tight">Майстерня поста</h1>
           <span className="hidden truncate text-sm text-muted sm:inline">{post ? post.name : '@iamsonia.psy'}</span>
         </div>
+        <div className="flex items-center rounded-lg border border-line">
+          <Button variant="ghost" className="!rounded-r-none" onClick={undo} disabled={!past.current.length} title="Відкотити останню зміну (Ctrl+Z)" aria-label="Відкотити останню зміну">↶ Відкотити</Button>
+          <Button variant="ghost" className="!rounded-l-none border-l !border-l-line" onClick={redo} disabled={!future.current.length} title="Повернути відкочене (Ctrl+Shift+Z)" aria-label="Повернути відкочену зміну">↷</Button>
+        </div>
+        <Button onClick={() => setCalendar(true)}>Календар</Button>
         <Button variant="ghost" onClick={() => setDark(d => !d)} aria-label="Перемкнути тему інтерфейсу">{dark ? 'Світла тема' : 'Темна тема'}</Button>
         {post ? (<>
           <Button onClick={exportPng} disabled={!canExport}>{busy === 'png' ? 'Готую PNG…' : 'PNG слайду'}</Button>
@@ -313,7 +368,8 @@ export default function App() {
               onMove={d => { const j = idx + d; patchPost(p => { const s = [...p.slides]; [s[idx], s[j]] = [s[j], s[idx]]; return { ...p, slides: s }; }); setSlideIdx(j); }} />
           )}
           <Frame t={t} imgs={imgs} vars={vars} fontTick={fontTick} selected={selected} guides={guides}
-            onSelect={setSelected} onBlock={patchBlock} onImage={patchImage} onLayouts={onLayouts} />
+            onSelect={setSelected} onBlock={patchBlock} onImage={patchImage} onLayouts={onLayouts}
+            onEditText={id => { setSelected(id); setEditRequest(r => ({ id, n: (r?.n ?? 0) + 1 })); }} />
         </main>
         <SettingsPanel t={t} selected={selected} guides={guides} fontsVersion={fontsVersion} post={postControls} onGuides={setGuides}
           onChange={patch => update(x => ({ ...x, ...patch }))} onFormat={setFormat} onBlock={patchBlock} onImage={patchImage} onSelect={setSelected}
@@ -326,12 +382,20 @@ export default function App() {
           onDuplicateBlock={id => { const src = t.blocks.find(b => b.id === id); if (!src) return; const nb = { ...src, id: uid(), y: src.y + 60 }; update(x => ({ ...x, blocks: [...x.blocks, nb] })); setSelected(nb.id); }}
           onDeleteBlock={id => { update(x => ({ ...x, blocks: x.blocks.filter(b => b.id !== id) })); setSelected(null); }}
           onDeleteImage={id => { update(x => ({ ...x, images: (x.images ?? []).filter(b => b.id !== id) })); setSelected(null); }}
-          onBgFile={onBgFile} onFontFile={onFontFile} />
+          onBgFile={onBgFile} onFontFile={onFontFile} editRequest={editRequest} />
       </div>
 
       {creating && (
-        <NewPostForm onClose={() => setCreating(false)}
-          onCreate={p => { setPosts(ps => ({ ...ps, [p.id]: p })); setPhotosVersion(v => v + 1); setCreating(false); openPost(p.id); setNote(`Пост зібрано: ${p.slides.length} слайдів`); }} />
+        <NewPostForm date={newPostDate} onClose={() => { setCreating(false); setNewPostDate(undefined); }}
+          onCreate={p => { setPosts(ps => ({ ...ps, [p.id]: p })); setPhotosVersion(v => v + 1); setCreating(false); setNewPostDate(undefined); openPost(p.id); setNote(`Пост зібрано: ${p.slides.length} слайдів`); }} />
+      )}
+
+      {calendar && (
+        <Calendar posts={postList} imgs={imgs} tick={fontTick} currentId={post?.id ?? null}
+          onOpen={id => { openPost(id); setCalendar(false); }}
+          onSetDate={(id, date) => setPosts(ps => (ps[id] ? { ...ps, [id]: { ...ps[id], date, updatedAt: Date.now() } } : ps))}
+          onNewOn={date => { setNewPostDate(date); setCalendar(false); setCreating(true); }}
+          onClose={() => setCalendar(false)} />
       )}
 
       {note && (

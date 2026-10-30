@@ -75,3 +75,11 @@ export async function deletePhotos(ids: string[]) {
     urls.delete(id);
   }
 }
+
+/** Прибирає фото, які не потрібні жодному посту (наприклад, після видалення поста в минулий раз). */
+export async function cleanupPhotos(keep: Set<string>) {
+  try {
+    const keys = (await tx('readonly', s => s.getAllKeys())) as string[];
+    await deletePhotos(keys.filter(k => !keep.has(k)));
+  } catch { /* немає сховища */ }
+}

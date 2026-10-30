@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { FORMATS } from '../lib/formats';
 import type { Post, Template } from '../lib/types';
+import { fmtPostDate } from './Calendar';
 import { Button } from './ui';
 
 interface Props {
@@ -41,7 +42,7 @@ export function Sidebar({ posts, templates, edited, current, onOpenPost, onOpenT
                 <span className="shrink-0 rounded-[4px] border border-line" style={{ width: 34, height: 34 * f.h / f.w, background: p.slides[0] ? bgPreview(p.slides[0]) : '#ccc' }} aria-hidden="true" />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold">{p.name || 'Без назви'}</span>
-                  <span className="block text-xs text-muted">{p.slides.length} слайдів · {fmtDate(p.updatedAt)}</span>
+                  <span className="block text-xs text-muted">{p.slides.length} слайдів · {p.date ? <span className="font-semibold text-accent">вихід {fmtPostDate(p.date)}</span> : `змінено ${fmtDate(p.updatedAt)}`}</span>
                 </span>
               </button>
             </li>

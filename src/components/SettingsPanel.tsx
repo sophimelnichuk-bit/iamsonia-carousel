@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { allFonts } from '../lib/fonts';
 import { FORMATS, FORMAT_IDS } from '../lib/formats';
 import { photoUrl } from '../lib/photos';
@@ -33,6 +33,8 @@ interface Props {
   onDeleteImage: (id: string) => void;
   onBgFile: (f: File) => void;
   onFontFile: (f: File) => void;
+  /** Подвійний клік по тексту в кадрі: перейти до його поля і поставити курсор. */
+  editRequest: { id: string; n: number } | null;
 }
 
 const WEIGHTS = [300, 400, 500, 600, 700, 800, 900].map(w => ({ value: w, label: `${w}${w === 400 ? ' · звичайний' : w === 700 ? ' · жирний' : ''}` }));
@@ -58,6 +60,15 @@ function PostSection({ pc }: { pc: PostControls }) {
           placeholder="Текст під каруселлю"
           className="w-full resize-y rounded-lg border border-line bg-soft px-2.5 py-2 text-[15px] text-ink" />
       </label>
+      <div className="flex flex-col gap-1 text-[13px] text-muted">
+        <label htmlFor="post-date">Дата публікації</label>
+        <div className="flex items-center gap-2">
+          <input id="post-date" type="date" value={pc.post.date ?? ''} onChange={e => pc.onPost({ date: e.target.value || undefined })}
+            className="min-w-0 flex-1 rounded-lg border border-line bg-soft px-2.5 py-1.5 text-[15px] text-ink" />
+          {pc.post.date && <Button variant="ghost" className="!px-2" onClick={() => pc.onPost({ date: undefined })}>Прибрати</Button>}
+        </div>
+        <span className="text-xs">Пост з’явиться в календарі контент-плану на цей день.</span>
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button onClick={copy} disabled={!pc.post.caption.trim()}>{copied ? 'Скопійовано' : 'Скопіювати підпис'}</Button>
         {confirm
@@ -86,8 +97,36 @@ export function SettingsPanel(p: Props) {
     if (kind === 'image') setBg({ kind, src: '', color: base, overlay: '#1E2030', overlayOpacity: 0.25, posX: 50, posY: 50, zoom: 1 });
   };
 
+  const areas = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  useEffect(() => {
+    const r = p.editRequest; if (!r) return;
+    const el = areas.current[r.id]; if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.focus(); el.setSelectionRange(el.value.length, el.value.length);
+  }, [p.editRequest]);
+  useEffect(() => {
+    if (p.selected) areas.current[p.selected]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [p.selected]);
+
   return (
     <aside className="border-line bg-panel lg:min-h-0 lg:overflow-y-auto lg:border-l">
+      <Section title="Текст на слайді" aside={<Button variant="ghost" className="!px-2 !py-1 text-[13px]" onClick={p.onAddBlock}>+ Блок</Button>}>
+        {t.blocks.map((x, i) => (
+          <label key={x.id} className="flex flex-col gap-1 text-[13px] text-muted" htmlFor={`txt-${x.id}`}>
+            <span className="flex items-center justify-between gap-2">
+              <span>{x.fontSize >= 70 ? 'Заголовок' : x.fontSize <= 30 ? 'Дрібний текст' : 'Текст'} {t.blocks.length > 1 ? i + 1 : ''}</span>
+              {x.id !== p.selected && <button type="button" className="text-xs text-accent" onClick={() => p.onSelect(x.id)}>Налаштувати вигляд</button>}
+            </span>
+            <textarea id={`txt-${x.id}`} ref={el => { areas.current[x.id] = el; }} rows={Math.min(8, Math.max(2, Math.ceil(x.text.length / 34)))} value={x.text}
+              onFocus={() => p.onSelect(x.id)} onChange={e => p.onBlock(x.id, { text: e.target.value })}
+              className={`w-full resize-y rounded-lg border bg-soft px-2.5 py-2 text-[15px] text-ink ${x.id === p.selected ? 'border-accent ring-1 ring-accent' : 'border-line'}`} />
+          </label>
+        ))}
+        {t.blocks.length
+          ? <p className="text-xs text-muted">Пиши прямо тут. <code>**слово**</code> жирним, <code>{'{n}/{total}'}</code> номер слайду. Подвійний клік по тексту в кадрі відкриває його поле.</p>
+          : <p className="text-[13px] text-muted">Додай текстовий блок, щоб написати текст на кадрі.</p>}
+      </Section>
+
       {pc && <PostSection pc={pc} />}
 
       {pc && (
@@ -177,7 +216,7 @@ export function SettingsPanel(p: Props) {
         </>)}
       </Section>
 
-      <Section title="Текст" aside={<Button variant="ghost" className="!px-2 !py-1 text-[13px]" onClick={p.onAddBlock}>+ Блок</Button>}>
+      <Section title="Вигляд тексту">
         <div className="flex flex-col gap-1">
           {t.blocks.map(x => (
             <button key={x.id} type="button" onClick={() => p.onSelect(x.id)} aria-pressed={x.id === p.selected}
@@ -188,12 +227,6 @@ export function SettingsPanel(p: Props) {
           {!t.blocks.length && <p className="text-[13px] text-muted">Додай текстовий блок, щоб написати текст на кадрі.</p>}
         </div>
         {b ? (<>
-          <label className="flex flex-col gap-1 text-[13px] text-muted" htmlFor={`txt-${b.id}`}>
-            Текст блоку
-            <textarea id={`txt-${b.id}`} rows={4} value={b.text} onChange={e => p.onBlock(b.id, { text: e.target.value })}
-              className="w-full resize-y rounded-lg border border-line bg-soft px-2.5 py-2 text-[15px] text-ink" />
-          </label>
-          <p className="-mt-1 text-xs text-muted"><code>**слово**</code> жирним, <code>{'{n}/{total}'}</code> номер слайду.</p>
           <Select label="Шрифт" value={b.fontFamily} onChange={v => p.onBlock(b.id, { fontFamily: v })}
             options={allFonts().map(f => ({ value: f.family, label: f.source === 'system' ? `${f.label} · системний` : f.label }))} key={p.fontsVersion} />
           <div className="pl-[104px]">
@@ -217,7 +250,7 @@ export function SettingsPanel(p: Props) {
             <Button onClick={() => p.onDuplicateBlock(b.id)}>Дублювати</Button>
             <Button variant="danger" onClick={() => p.onDeleteBlock(b.id)}>Видалити блок</Button>
           </div>
-        </>) : !im && t.blocks.length > 0 && <p className="text-[13px] text-muted">Натисни на текст чи фото в кадрі або на блок у списку, щоб його налаштувати.</p>}
+        </>) : !im && t.blocks.length > 0 && <p className="text-[13px] text-muted">Натисни на текст у кадрі або на блок у списку, щоб змінити шрифт, розмір чи колір.</p>}
       </Section>
     </aside>
   );

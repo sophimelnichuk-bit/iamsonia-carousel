@@ -17,7 +17,7 @@ const SAMPLE = `Ти не можеш без партнера чи навпаки
 
 const field = 'w-full rounded-lg border border-line bg-soft px-3 py-2 text-[15px] text-ink';
 
-export function NewPostForm({ onClose, onCreate }: { onClose: () => void; onCreate: (p: Post) => void }) {
+export function NewPostForm({ onClose, onCreate, date }: { onClose: () => void; onCreate: (p: Post) => void; date?: string }) {
   const [text, setText] = useState('');
   const [photos, setPhotos] = useState<PhotoInfo[]>([]);
   const [format, setFormat] = useState<FormatId>('feed');
@@ -61,7 +61,7 @@ export function NewPostForm({ onClose, onCreate }: { onClose: () => void; onCrea
       // шрифт має бути завантажений до верстки, інакше розміри тексту розрахуються неточно
       await Promise.all(['400 40px Onest', '500 40px Onest', '800 80px Onest'].map(f => document.fonts.load(f, 'Аа')));
       created.current = true;
-      onCreate(composePost({ text, photos, format, caption, cta }));
+      onCreate({ ...composePost({ text, photos, format, caption, cta }), ...(date ? { date } : {}) });
     } catch { created.current = false; setErr('Не вдалося зібрати пост. Спробуй ще раз.'); setBusy(false); }
   };
 
@@ -69,7 +69,7 @@ export function NewPostForm({ onClose, onCreate }: { onClose: () => void; onCrea
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-[#141622]/50 px-4 py-6" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div role="dialog" aria-modal="true" aria-labelledby="np-title" className="w-full max-w-3xl rounded-2xl border border-line bg-panel shadow-2xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <h2 id="np-title" className="text-lg font-bold">Новий пост</h2>
+          <h2 id="np-title" className="text-lg font-bold">Новий пост{date ? ` на ${new Date(date + 'T12:00').toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })}` : ''}</h2>
           <Button variant="ghost" onClick={onClose} aria-label="Закрити">Закрити</Button>
         </div>
 

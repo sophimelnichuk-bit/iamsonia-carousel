@@ -14,11 +14,12 @@ interface Props {
   onBlock: (id: string, patch: Partial<TextBlock>) => void;
   onImage: (id: string, patch: Partial<ImageBlock>) => void;
   onLayouts: (l: Record<string, BlockLayout>) => void;
+  onEditText: (id: string) => void;
 }
 
 type Drag = { id: string; mode: 'move' | 'width' | 'resize'; target: 'text' | 'image'; sx: number; sy: number; ox: number; oy: number; ow: number; oh: number };
 
-export function Frame({ t, imgs, vars, fontTick, selected, guides, onSelect, onBlock, onImage, onLayouts }: Props) {
+export function Frame({ t, imgs, vars, fontTick, selected, guides, onSelect, onBlock, onImage, onLayouts, onEditText }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -101,9 +102,10 @@ export function Frame({ t, imgs, vars, fontTick, selected, guides, onSelect, onB
           const h = (layouts[b.id]?.height ?? b.fontSize * b.lineHeight) * scale;
           const sel = b.id === selected;
           return (
-            <div key={b.id} role="button" tabIndex={0} aria-label={`Текстовий блок: ${b.text.slice(0, 40) || 'порожній'}. Стрілки рухають блок`}
+            <div key={b.id} role="button" tabIndex={0} aria-label={`Текстовий блок: ${b.text.slice(0, 40) || 'порожній'}. Стрілки рухають блок, Enter відкриває текст`}
               onPointerDown={e => down(e, b.id, 'text', 'move')} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-              onKeyDown={e => key(e, b.id, 'text')} onFocus={() => onSelect(b.id)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onEditText(b.id); } else key(e, b.id, 'text'); }} onFocus={() => onSelect(b.id)}
+              onDoubleClick={() => onEditText(b.id)} title="Подвійний клік, щоб змінити текст"
               className={`absolute cursor-move touch-none rounded-[2px] ${ring(sel)}`}
               style={{ left: b.x * scale, top: b.y * scale, width: b.width * scale, height: Math.max(h, 8) }}>
               {sel && (

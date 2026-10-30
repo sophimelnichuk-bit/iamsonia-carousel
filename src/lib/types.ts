@@ -79,6 +79,8 @@ export interface Post {
   caption: string;
   photos: PhotoInfo[];
   slides: Template[];
+  /** День публікації за контент-планом, формат РРРР-ММ-ДД. */
+  date?: string;
   createdAt: number;
   updatedAt: number;
 }
