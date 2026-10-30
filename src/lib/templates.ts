@@ -28,7 +28,9 @@ export function assetUrl(src: string): string {
 /** JSON для репозиторію: тимчасові фото з комп’ютера в нього не потрапляють. */
 export function templateToJson(t: Template): string {
   const out = clone(t);
-  if (out.background.kind === 'image' && /^(blob:|data:)/.test(out.background.src)) out.background.src = '';
+  const local = (src: string) => /^(blob:|data:|photo:)/.test(src);
+  if (out.background.kind === 'image' && local(out.background.src)) out.background.src = '';
+  if (out.images) out.images = out.images.map(i => (local(i.src) ? { ...i, src: '' } : i));
   return JSON.stringify(out, null, 2) + '\n';
 }
 
@@ -47,6 +49,10 @@ export function clampBlocks(t: Template, heights: Record<string, number> = {}): 
   const px = t.padding.x, py = t.padding.y;
   return {
     ...t,
+    images: t.images?.map(i => {
+      const width = Math.min(Math.max(i.width, 60), W), height = Math.min(Math.max(i.height, 60), H);
+      return { ...i, width, height, x: Math.min(Math.max(i.x, 0), W - width), y: Math.min(Math.max(i.y, 0), H - height) };
+    }),
     blocks: t.blocks.map(b => {
       const width = Math.min(b.width, W - px * 2);
       const hgt = heights[b.id] ?? b.fontSize * b.lineHeight;

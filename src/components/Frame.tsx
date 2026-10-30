@@ -1,22 +1,24 @@
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPE } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent as RPE } from 'react';
 import { FORMATS } from '../lib/formats';
-import { drawFrame, type BlockLayout } from '../lib/render';
-import type { Template } from '../lib/types';
+import { drawFrame, type BlockLayout, type ImageMap, type SlideVars } from '../lib/render';
+import type { ImageBlock, Template, TextBlock } from '../lib/types';
 
 interface Props {
   t: Template;
-  img: HTMLImageElement | null;
+  imgs: ImageMap;
+  vars: SlideVars;
   fontTick: number;
   selected: string | null;
   guides: boolean;
   onSelect: (id: string | null) => void;
-  onBlock: (id: string, patch: { x?: number; y?: number; width?: number }) => void;
+  onBlock: (id: string, patch: Partial<TextBlock>) => void;
+  onImage: (id: string, patch: Partial<ImageBlock>) => void;
   onLayouts: (l: Record<string, BlockLayout>) => void;
 }
 
-type Drag = { id: string; mode: 'move' | 'width'; sx: number; sy: number; ox: number; oy: number; ow: number };
+type Drag = { id: string; mode: 'move' | 'width' | 'resize'; target: 'text' | 'image'; sx: number; sy: number; ox: number; oy: number; ow: number; oh: number };
 
-export function Frame({ t, img, fontTick, selected, guides, onSelect, onBlock, onLayouts }: Props) {
+export function Frame({ t, imgs, vars, fontTick, selected, guides, onSelect, onBlock, onImage, onLayouts }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -37,33 +39,39 @@ export function Frame({ t, img, fontTick, selected, guides, onSelect, onBlock, o
 
   useEffect(() => {
     if (!cv.current) return;
-    const L = drawFrame(cv.current, t, img);
+    const L = drawFrame(cv.current, t, imgs, vars);
     setLayouts(L); onLayouts(L);
-  }, [t, img, fontTick, onLayouts]);
+  }, [t, imgs, vars, fontTick, onLayouts]);
 
-  const down = (e: RPE, id: string, mode: Drag['mode']) => {
+  const down = (e: RPE, id: string, target: Drag['target'], mode: Drag['mode']) => {
     e.stopPropagation(); e.preventDefault();
-    const b = t.blocks.find(x => x.id === id); if (!b) return;
+    const b = target === 'text' ? t.blocks.find(x => x.id === id) : t.images?.find(x => x.id === id);
+    if (!b) return;
     onSelect(id);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { id, mode, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y, ow: b.width };
+    drag.current = { id, mode, target, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y, ow: b.width, oh: 'height' in b ? b.height : 0 };
   };
   const move = (e: RPE) => {
     const d = drag.current; if (!d) return;
     const dx = (e.clientX - d.sx) / scale, dy = (e.clientY - d.sy) / scale;
-    if (d.mode === 'move') onBlock(d.id, { x: Math.round(d.ox + dx), y: Math.round(d.oy + dy) });
-    else onBlock(d.id, { width: Math.max(80, Math.round(d.ow + dx)) });
+    const set = d.target === 'text' ? onBlock : onImage;
+    if (d.mode === 'move') set(d.id, { x: Math.round(d.ox + dx), y: Math.round(d.oy + dy) });
+    else if (d.mode === 'width') onBlock(d.id, { width: Math.max(80, Math.round(d.ow + dx)) });
+    else onImage(d.id, { width: Math.max(60, Math.round(d.ow + dx)), height: Math.max(60, Math.round(d.oh + dy)) });
   };
   const up = () => { drag.current = null; };
 
-  const key = (e: React.KeyboardEvent, id: string) => {
-    const b = t.blocks.find(x => x.id === id); if (!b) return;
+  const key = (e: KeyboardEvent, id: string, target: Drag['target']) => {
+    const b = target === 'text' ? t.blocks.find(x => x.id === id) : t.images?.find(x => x.id === id);
+    if (!b) return;
     const step = e.shiftKey ? 20 : 4;
     const m: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
-    if (m[e.key]) { e.preventDefault(); onBlock(id, { x: b.x + m[e.key][0], y: b.y + m[e.key][1] }); }
+    if (m[e.key]) { e.preventDefault(); (target === 'text' ? onBlock : onImage)(id, { x: b.x + m[e.key][0], y: b.y + m[e.key][1] }); }
   };
 
   const px = t.padding.x * scale, py = t.padding.y * scale;
+  const ring = (sel: boolean) => (sel ? 'outline-2 outline-[#3B82F6]' : 'hover:outline hover:outline-1 hover:outline-[#3B82F6]/60');
+  const handle = 'absolute touch-none rounded-sm border border-white bg-[#3B82F6]';
   return (
     <div ref={box} className="checker relative flex h-[min(70vh,135vw)] min-h-[320px] items-center justify-center overflow-hidden lg:h-auto lg:min-h-0 lg:flex-1"
       onPointerDown={() => onSelect(null)}>
@@ -73,19 +81,34 @@ export function Frame({ t, img, fontTick, selected, guides, onSelect, onBlock, o
           <div className="pointer-events-none absolute border border-dashed border-white/60 mix-blend-difference"
             style={{ left: px, top: py, right: px, bottom: py }} aria-hidden="true" />
         )}
+        {(t.images ?? []).map(im => {
+          const sel = im.id === selected;
+          return (
+            <div key={im.id} role="button" tabIndex={0} aria-label="Фото-блок. Стрілки рухають фото"
+              onPointerDown={e => down(e, im.id, 'image', 'move')} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+              onKeyDown={e => key(e, im.id, 'image')} onFocus={() => onSelect(im.id)}
+              className={`absolute cursor-move touch-none ${ring(sel)}`}
+              style={{ left: im.x * scale, top: im.y * scale, width: im.width * scale, height: im.height * scale, borderRadius: im.radius * scale }}>
+              {!imgs[im.src] && <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-[#4D5270]/70">Фото</span>}
+              {sel && (
+                <span onPointerDown={e => down(e, im.id, 'image', 'resize')} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+                  title="Тягни, щоб змінити розмір" aria-hidden="true" className={`${handle} -right-1.5 -bottom-1.5 size-3.5 cursor-nwse-resize`} />
+              )}
+            </div>
+          );
+        })}
         {t.blocks.map(b => {
           const h = (layouts[b.id]?.height ?? b.fontSize * b.lineHeight) * scale;
           const sel = b.id === selected;
           return (
             <div key={b.id} role="button" tabIndex={0} aria-label={`Текстовий блок: ${b.text.slice(0, 40) || 'порожній'}. Стрілки рухають блок`}
-              onPointerDown={e => down(e, b.id, 'move')} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-              onKeyDown={e => key(e, b.id)} onFocus={() => onSelect(b.id)}
-              className={`absolute cursor-move touch-none rounded-[2px] outline-offset-0 ${sel ? 'outline-2 outline-[#3B82F6]' : 'hover:outline hover:outline-1 hover:outline-[#3B82F6]/60'}`}
+              onPointerDown={e => down(e, b.id, 'text', 'move')} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+              onKeyDown={e => key(e, b.id, 'text')} onFocus={() => onSelect(b.id)}
+              className={`absolute cursor-move touch-none rounded-[2px] ${ring(sel)}`}
               style={{ left: b.x * scale, top: b.y * scale, width: b.width * scale, height: Math.max(h, 8) }}>
               {sel && (
-                <span onPointerDown={e => down(e, b.id, 'width')} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-                  title="Тягни, щоб змінити ширину" aria-hidden="true"
-                  className="absolute top-1/2 -right-1.5 h-6 w-3 -translate-y-1/2 cursor-ew-resize touch-none rounded-sm border border-white bg-[#3B82F6]" />
+                <span onPointerDown={e => down(e, b.id, 'text', 'width')} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+                  title="Тягни, щоб змінити ширину" aria-hidden="true" className={`${handle} top-1/2 -right-1.5 h-6 w-3 -translate-y-1/2 cursor-ew-resize`} />
               )}
             </div>
           );
