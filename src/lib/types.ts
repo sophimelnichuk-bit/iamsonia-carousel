@@ -84,3 +84,13 @@ export interface Post {
   createdAt: number;
   updatedAt: number;
 }
+
+/** Тема з контент-плану: що виходить у який день. */
+export interface PlanItem {
+  id: string;
+  /** РРРР-ММ-ДД */
+  date: string;
+  title: string;
+  note?: string;
+  cta?: string;
+}

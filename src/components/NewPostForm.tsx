@@ -17,7 +17,7 @@ const SAMPLE = `Ти не можеш без партнера чи навпаки
 
 const field = 'w-full rounded-lg border border-line bg-soft px-3 py-2 text-[15px] text-ink';
 
-export function NewPostForm({ onClose, onCreate, date }: { onClose: () => void; onCreate: (p: Post) => void; date?: string }) {
+export function NewPostForm({ onClose, onCreate, date, topic }: { onClose: () => void; onCreate: (p: Post) => void; date?: string; topic?: string }) {
   const [text, setText] = useState('');
   const [photos, setPhotos] = useState<PhotoInfo[]>([]);
   const [format, setFormat] = useState<FormatId>('feed');
@@ -61,7 +61,7 @@ export function NewPostForm({ onClose, onCreate, date }: { onClose: () => void; 
       // шрифт має бути завантажений до верстки, інакше розміри тексту розрахуються неточно
       await Promise.all(['400 40px Onest', '500 40px Onest', '800 80px Onest'].map(f => document.fonts.load(f, 'Аа')));
       created.current = true;
-      onCreate({ ...composePost({ text, photos, format, caption, cta }), ...(date ? { date } : {}) });
+      onCreate({ ...composePost({ text, photos, format, caption, cta }), ...(date ? { date } : {}), ...(topic ? { name: topic } : {}) });
     } catch { created.current = false; setErr('Не вдалося зібрати пост. Спробуй ще раз.'); setBusy(false); }
   };
 
@@ -73,6 +73,7 @@ export function NewPostForm({ onClose, onCreate, date }: { onClose: () => void; 
           <Button variant="ghost" onClick={onClose} aria-label="Закрити">Закрити</Button>
         </div>
 
+        {topic && <p className="border-b border-line bg-accent-soft px-5 py-2.5 text-[14px]"><b>Тема з контент-плану:</b> {topic}</p>}
         <div className="grid gap-5 px-5 py-5 md:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex items-baseline justify-between gap-2">

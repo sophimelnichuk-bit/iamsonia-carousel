@@ -13,10 +13,21 @@ import { FORMATS } from './lib/formats';
 import { addPhoto, cleanupPhotos, loadAllPhotos } from './lib/photos';
 import { canvasToPng, drawFrame, loadImage, loadSlideImages, slideSrcs, type BlockLayout, type ImageMap } from './lib/render';
 import { BUILTIN, blankBlock, clampBlocks, clone, isTemplate, templateToJson, uid } from './lib/templates';
-import type { FormatId, ImageBlock, PhotoInfo, Post, SlideKind, Template, TextBlock } from './lib/types';
+import type { FormatId, ImageBlock, PhotoInfo, PlanItem, Post, SlideKind, Template, TextBlock } from './lib/types';
+import PLAN from './content-plan.json';
 
 const DRAFTS_KEY = 'studio-drafts';
 const POSTS_KEY = 'studio-posts';
+const PLAN_KEY = 'studio-plan';
+
+/** Контент-план: теми з репозиторію плюс правки, зроблені в календарі на цьому пристрої. */
+function loadPlan(): PlanItem[] {
+  const saved = readJson<{ items: PlanItem[]; seen: string[] } | null>(PLAN_KEY, null);
+  const base = PLAN as PlanItem[];
+  if (!saved || !Array.isArray(saved.items)) return base;
+  const seen = new Set(saved.seen ?? []);
+  return [...saved.items.filter(i => i && i.id && i.date && i.title), ...base.filter(i => !seen.has(i.id))];
+}
 
 function readJson<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) || '') as T; } catch { return fallback; }
@@ -40,12 +51,13 @@ function download(blob: Blob, name: string) {
 const fileBase = (p: Post) => `iamsonia-${new Date(p.createdAt).toISOString().slice(0, 10)}`;
 
 type Current = { kind: 'post' | 'template'; id: string };
-type Snap = { posts: Record<string, Post>; drafts: Record<string, Template> };
+type Snap = { posts: Record<string, Post>; drafts: Record<string, Template>; plan: PlanItem[] };
 
 export default function App() {
   const [library, setLibrary] = useState<Template[]>(BUILTIN);
   const [drafts, setDrafts] = useState<Record<string, Template>>(loadDrafts);
   const [posts, setPosts] = useState<Record<string, Post>>(loadPosts);
+  const [plan, setPlan] = useState<PlanItem[]>(loadPlan);
   const [current, setCurrent] = useState<Current>(() => {
     const recent = Object.values(loadPosts()).sort((a, b) => b.updatedAt - a.updatedAt)[0];
     return recent ? { kind: 'post', id: recent.id } : { kind: 'template', id: BUILTIN[0]?.id ?? '' };
@@ -66,19 +78,20 @@ export default function App() {
   const heights = useRef<Record<string, number>>({});
   const [calendar, setCalendar] = useState(false);
   const [newPostDate, setNewPostDate] = useState<string | undefined>();
+  const [newPostTopic, setNewPostTopic] = useState<string | undefined>();
   const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
 
   // Історія змін для кнопки «Відкотити». Серія швидких змін (рух повзунка, набір тексту) стає одним кроком.
   const past = useRef<Snap[]>([]);
   const future = useRef<Snap[]>([]);
-  const prevSnap = useRef<Snap>({ posts, drafts });
+  const prevSnap = useRef<Snap>({ posts, drafts, plan });
   const lastChange = useRef(0);
   const restoring = useRef(false);
   const [, setHistTick] = useState(0);
   useEffect(() => {
-    const cur = { posts, drafts };
+    const cur = { posts, drafts, plan };
     if (restoring.current) { restoring.current = false; prevSnap.current = cur; return; }
-    if (cur.posts === prevSnap.current.posts && cur.drafts === prevSnap.current.drafts) return;
+    if (cur.posts === prevSnap.current.posts && cur.drafts === prevSnap.current.drafts && cur.plan === prevSnap.current.plan) return;
     const now = Date.now();
     if (now - lastChange.current > 700) {
       past.current.push(prevSnap.current);
@@ -88,12 +101,12 @@ export default function App() {
     }
     lastChange.current = now;
     prevSnap.current = cur;
-  }, [posts, drafts]);
+  }, [posts, drafts, plan]);
   const travel = useCallback((from: React.MutableRefObject<Snap[]>, to: React.MutableRefObject<Snap[]>, msg: string) => {
     const s = from.current.pop(); if (!s) return;
     to.current.push(prevSnap.current);
     restoring.current = true; lastChange.current = 0;
-    setPosts(s.posts); setDrafts(s.drafts); setHistTick(n => n + 1); setNote(msg);
+    setPosts(s.posts); setDrafts(s.drafts); setPlan(s.plan); setHistTick(n => n + 1); setNote(msg);
   }, []);
   const undo = useCallback(() => travel(past, future, 'Останню зміну відкочено'), [travel]);
   const redo = useCallback(() => travel(future, past, 'Зміну повернуто'), [travel]);
@@ -122,6 +135,10 @@ export default function App() {
 
   useEffect(() => { writeJson(DRAFTS_KEY, Object.fromEntries(Object.entries(drafts).map(([k, v]) => [k, JSON.parse(templateToJson(v))]))); }, [drafts]);
   useEffect(() => { writeJson(POSTS_KEY, posts); }, [posts]);
+  useEffect(() => {
+    if (plan === PLAN) return; // поки план не міняли, беремо його з репозиторію
+    writeJson(PLAN_KEY, { items: plan, seen: [...new Set([...(PLAN as PlanItem[]).map(i => i.id), ...plan.map(i => i.id)])] });
+  }, [plan]);
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
     try { localStorage.setItem('studio-theme', dark ? 'dark' : 'light'); } catch { /* немає сховища */ }
@@ -386,12 +403,14 @@ export default function App() {
       </div>
 
       {creating && (
-        <NewPostForm date={newPostDate} onClose={() => { setCreating(false); setNewPostDate(undefined); }}
-          onCreate={p => { setPosts(ps => ({ ...ps, [p.id]: p })); setPhotosVersion(v => v + 1); setCreating(false); setNewPostDate(undefined); openPost(p.id); setNote(`Пост зібрано: ${p.slides.length} слайдів`); }} />
+        <NewPostForm date={newPostDate} topic={newPostTopic} onClose={() => { setCreating(false); setNewPostDate(undefined); setNewPostTopic(undefined); }}
+          onCreate={p => { setPosts(ps => ({ ...ps, [p.id]: p })); setPhotosVersion(v => v + 1); setCreating(false); setNewPostDate(undefined); setNewPostTopic(undefined); openPost(p.id); setNote(`Пост зібрано: ${p.slides.length} слайдів`); }} />
       )}
 
       {calendar && (
-        <Calendar posts={postList} imgs={imgs} tick={fontTick} currentId={post?.id ?? null}
+        <Calendar plan={plan} onPlan={fn => setPlan(fn)}
+          onNewFromTopic={it => { setNewPostDate(it.date); setNewPostTopic(it.title); setCalendar(false); setCreating(true); }}
+          posts={postList} imgs={imgs} tick={fontTick} currentId={post?.id ?? null}
           onOpen={id => { openPost(id); setCalendar(false); }}
           onSetDate={(id, date) => setPosts(ps => (ps[id] ? { ...ps, [id]: { ...ps[id], date, updatedAt: Date.now() } } : ps))}
           onNewOn={date => { setNewPostDate(date); setCalendar(false); setCreating(true); }}
